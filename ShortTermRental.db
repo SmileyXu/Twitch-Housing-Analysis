@@ -1,0 +1,441 @@
+--
+-- File generated with SQLiteStudio v3.3.3 on Thu Jun 23 21:50:52 2022
+--
+-- Text encoding used: System
+--
+PRAGMA foreign_keys = off;
+BEGIN TRANSACTION;
+
+-- Table: airbnb_listing
+CREATE TABLE airbnb_listing (
+    id,
+    listing_url,
+    scrape_id,
+    last_scraped,
+    name,
+    description,
+    neighborhood_overview,
+    picture_url,
+    host_id,
+    host_url,
+    host_name,
+    host_since,
+    host_location,
+    host_about,
+    host_response_time,
+    host_response_rate,
+    host_acceptance_rate,
+    host_is_superhost,
+    host_thumbnail_url,
+    host_picture_url,
+    host_neighbourhood,
+    host_listings_count,
+    host_total_listings_count,
+    host_verifications,
+    host_has_profile_pic,
+    host_identity_verified,
+    neighbourhood,
+    neighbourhood_cleansed,
+    neighbourhood_group_cleansed,
+    latitude,
+    longitude,
+    property_type,
+    room_type,
+    accommodates,
+    bathrooms,
+    bathrooms_text,
+    bedrooms,
+    beds,
+    amenities,
+    price,
+    minimum_nights,
+    maximum_nights,
+    minimum_minimum_nights,
+    maximum_minimum_nights,
+    minimum_maximum_nights,
+    maximum_maximum_nights,
+    minimum_nights_avg_ntm,
+    maximum_nights_avg_ntm,
+    calendar_updated,
+    has_availability,
+    availability_30,
+    availability_60,
+    availability_90,
+    availability_365,
+    calendar_last_scraped,
+    number_of_reviews,
+    number_of_reviews_ltm,
+    number_of_reviews_l30d,
+    first_review,
+    last_review,
+    review_scores_rating,
+    review_scores_accuracy,
+    review_scores_cleanliness,
+    review_scores_checkin,
+    review_scores_communication,
+    review_scores_location,
+    review_scores_value,
+    license,
+    instant_bookable,
+    calculated_host_listings_count,
+    calculated_host_listings_count_entire_homes,
+    calculated_host_listings_count_private_rooms,
+    calculated_host_listings_count_shared_rooms,
+    reviews_per_month
+);
+
+
+-- Table: gov_authorized_rentals
+CREATE TABLE gov_authorized_rentals (
+    CASE_NUMBER,
+    STR_TYPE,
+    PROP_ADDRESS,
+    PROP_CITY,
+    PROP_STATE,
+    PROP_ZIP,
+    COUNCIL_DISTRICT
+);
+
+
+-- Table: gov_crime
+CREATE TABLE gov_crime (
+    [Incident Number],
+    [Highest Offense Description],
+    [Highest Offense Code],
+    [Family Violence],
+    [Occurred Date Time],
+    [Occurred Date],
+    [Occurred Time],
+    [Report Date Time],
+    [Report Date],
+    [Report Time],
+    [Location Type],
+    Address,
+    [Zip Code],
+    [Council District],
+    [APD Sector],
+    [APD District],
+    PRA,
+    [Census Tract],
+    [Clearance Status],
+    [Clearance Date],
+    [UCR Category],
+    [Category Description],
+    [X-coordinate],
+    [Y-coordinate],
+    Latitude,
+    Longitude,
+    Location
+);
+
+
+-- Table: population
+CREATE TABLE population (
+    zipcode     INTEGER,
+    pop_2010    INTEGER,
+    pop_2022    INTEGER,
+    growth_rate REAL
+);
+
+
+-- Table: zillow_listing
+CREATE TABLE zillow_listing (
+    zpid,
+    city,
+    streetAddress,
+    zipcode,
+    description,
+    latitude,
+    longitude,
+    propertyTaxRate,
+    garageSpaces,
+    hasAssociation,
+    hasCooling,
+    hasGarage,
+    hasHeating,
+    hasSpa,
+    hasView,
+    homeType,
+    parkingSpaces,
+    yearBuilt,
+    latestPrice,
+    numPriceChanges,
+    latest_saledate,
+    latest_salemonth,
+    latest_saleyear,
+    latestPriceSource,
+    numOfPhotos,
+    numOfAccessibilityFeatures,
+    numOfAppliances,
+    numOfParkingFeatures,
+    numOfPatioAndPorchFeatures,
+    numOfSecurityFeatures,
+    numOfWaterfrontFeatures,
+    numOfWindowFeatures,
+    numOfCommunityFeatures,
+    lotSizeSqFt,
+    livingAreaSqFt,
+    numOfPrimarySchools,
+    numOfElementarySchools,
+    numOfMiddleSchools,
+    numOfHighSchools,
+    avgSchoolDistance,
+    avgSchoolRating,
+    avgSchoolSize,
+    MedianStudentsPerTeacher,
+    numOfBathrooms,
+    numOfBedrooms,
+    numOfStories,
+    homeImage
+);
+
+
+-- Table: zipcode
+CREATE TABLE zipcode (
+    [Unnamed: 0] INTEGER,
+    zipcode      INTEGER
+);
+
+
+-- View: crime_cnt_pivot
+CREATE VIEW crime_cnt_pivot AS
+WITH cte AS (
+        SELECT [Incident Number] AS id,
+               [Highest Offense Description] AS crime,
+               CAST (substr([Occurred Date], 7, 4) AS INT) AS year,-- extract year from date string
+               NULLIF(trim([Zip Code]), "") AS zipcode,-- prepare for removing null entries
+               NULLIF(trim(Latitude), "") AS latitude,-- prepare for removing null entries
+               NULLIF(trim(Longitude), "") AS longitude-- prepare for removing null entries
+          FROM gov_crime
+         WHERE zipcode IN (
+                   SELECT zipcode
+                     FROM zipcode
+               )
+    ),
+    notnullcte AS (-- create not null cte for future use
+        SELECT zipcode,
+               year,
+               latitude,
+               longitude
+          FROM cte
+         WHERE (year >= 2018) AND-- same time frame as housing price data for comparability 
+               (zipcode IS NOT NULL) AND-- preparing for calculation and graph 
+               (latitude IS NOT NULL) 
+    )
+    SELECT zipcode,
+           sum(CASE WHEN year = 2018 THEN 1 ELSE 0 END) AS crime_2018,-- count all the cases that are in 2018
+           sum(CASE WHEN year = 2019 THEN 1 ELSE 0 END) AS crime_2019,
+           sum(CASE WHEN year = 2020 THEN 1 ELSE 0 END) AS crime_2020,
+           sum(CASE WHEN year = 2021 THEN 1 ELSE 0 END) AS crime_2021,
+           sum(CASE WHEN year = 2022 THEN 1 ELSE 0 END) AS crime_2022,
+           count(zipcode) AS total-- case counts by zipcode
+      FROM notnullcte
+     GROUP BY zipcode
+     ORDER BY zipcode;
+
+
+-- View: crime_rate_pivot
+CREATE VIEW crime_rate_pivot AS
+WITH cte AS (
+        SELECT [Incident Number] AS id,
+               [Highest Offense Description] AS crime,
+               CAST (substr([Occurred Date], 7, 4) AS INT) AS year,-- extract year from date string
+               NULLIF(trim([Zip Code]), "") AS zipcode,-- prepare for removing null entries
+               NULLIF(trim(Latitude), "") AS latitude,-- prepare for removing null entries
+               NULLIF(trim(Longitude), "") AS longitude-- prepare for removing null entries
+          FROM gov_crime
+         WHERE zipcode IN (
+                   SELECT zipcode
+                     FROM zipcode
+               )
+    ),
+    notnullcte AS (-- create not null cte for future use
+        SELECT zipcode,
+               year,
+               latitude,
+               longitude
+          FROM cte
+         WHERE (year >= 2018) AND-- same time frame as housing price data for comparability 
+               (zipcode IS NOT NULL) AND 
+               (latitude IS NOT NULL) 
+    ),
+    byyearpivot AS (
+        SELECT zipcode,
+               sum(CASE WHEN year = 2018 THEN 1 ELSE 0 END) AS crime_2018,
+               sum(CASE WHEN year = 2019 THEN 1 ELSE 0 END) AS crime_2019,
+               sum(CASE WHEN year = 2020 THEN 1 ELSE 0 END) AS crime_2020,
+               sum(CASE WHEN year = 2021 THEN 1 ELSE 0 END) AS crime_2021,
+               sum(CASE WHEN year = 2022 THEN 1 ELSE 0 END) AS crime_2022,
+               count(zipcode) AS total
+          FROM notnullcte
+         GROUP BY zipcode
+         ORDER BY zipcode
+    ),
+    pop AS (
+        SELECT zipcode,
+               pop_2010 * POWER(growth_rate, 8) AS pop_2018,-- simulate 2018 population using pop_2010 * growth_rate^8
+               pop_2010 * POWER(growth_rate, 9) AS pop_2019,
+               pop_2010 * POWER(growth_rate, 10) AS pop_2020,
+               pop_2010 * POWER(growth_rate, 11) AS pop_2021
+          FROM population
+    ),
+    rate AS (
+        SELECT b.zipcode,
+               crime_2018 / pop_2018 AS crime_rt_18,
+               crime_2019 / pop_2019 AS crime_rt_19,
+               crime_2020 / pop_2020 AS crime_rt_20,
+               crime_2021 / pop_2021 AS crime_rt_21
+          FROM byyearpivot b
+               LEFT JOIN-- byyearpivot has a stricter constraint on zipcodes
+               pop p ON b.zipcode = p.zipcode
+    )
+    SELECT zipcode,
+           crime_rt_18,
+           crime_rt_19,
+           crime_rt_20,
+           crime_rt_21,
+           dense_rank() OVER (ORDER BY crime_rt_18) AS rank_18,
+           dense_rank() OVER (ORDER BY crime_rt_19) AS rank_19,
+           dense_rank() OVER (ORDER BY crime_rt_20) AS rank_20,
+           dense_rank() OVER (ORDER BY crime_rt_21) AS rank_21
+      FROM rate
+     ORDER BY rank_21;
+
+
+-- View: gov_crime_process
+CREATE VIEW gov_crime_process AS
+WITH cte AS (
+        SELECT [Incident Number] AS id,
+               [Highest Offense Description] AS crime,
+               CAST (substr([Occurred Date], 7, 4) AS INT) AS year,-- extract year from date string
+               NULLIF(trim([Zip Code]), "") AS zipcode,-- prepare for removing null entries
+               NULLIF(trim(Latitude), "") AS latitude,-- prepare for removing null entries
+               NULLIF(trim(Longitude), "") AS longitude-- prepare for removing null entries
+          FROM gov_crime
+         WHERE zipcode IN (
+                   SELECT zipcode
+                     FROM zipcode
+               )
+    )-- create not null cte for future use
+    SELECT zipcode,
+           year,
+           latitude,
+           longitude
+      FROM cte
+     WHERE (year >= 2018) AND-- same time frame as housing price data for comparability 
+           (zipcode IS NOT NULL) AND 
+           (latitude IS NOT NULL);
+
+
+-- View: housing_price
+CREATE VIEW housing_price AS
+WITH cte AS (
+        SELECT zpid,
+               zipcode,
+               latitude,
+               longitude,
+               garageSpaces,
+               CAST (latestPrice AS INT) AS price,-- price field is string datatype
+               latest_saleyear,
+               lotSizeSqFt,
+               livingAreaSqFt,
+               avgSchoolDistance,
+               avgSchoolRating
+          FROM zillow_listing
+         WHERE homeType = 'Single Family' AND 
+               price >= 75000 AND 
+               price < 3000000 AND 
+               zipcode IN (
+                   SELECT zipcode
+                     FROM zipcode
+               )
+    ),
+    price AS (
+        SELECT zipcode,
+               latitude,
+               longitude,
+               price,
+               price / lotSizeSqFt AS avgLotPrice,
+               price / livingAreaSqFt AS avgLivingPrice,
+               avg(price) OVER (PARTITION BY zipcode) AS avgPrice,-- get average price by zipcode
+               avgSchoolRating
+          FROM cte
+         ORDER BY avgPrice
+    )
+    SELECT *
+      FROM price
+     GROUP BY zipcode
+     ORDER BY avgPrice;
+
+
+-- View: population_by_zipcode
+CREATE VIEW population_by_zipcode AS
+WITH cte AS (
+        SELECT [Zip Code] AS zipcode,
+               pop_2010,
+               pop_2022,
+               NULLIF(latitude, '') AS latitude,
+               NULLIF(longitude, '') AS longitude,
+               growth_rate
+          FROM gov_crime gc-- using the latitude and longitude from gov_crime for pinpointing center of zipcode districts
+               INNER JOIN
+               population p ON gc.[Zip Code] = p.zipcode
+         WHERE zipcode IN (
+                   SELECT zipcode
+                     FROM zipcode
+               )
+    ),
+    location AS (
+        SELECT zipcode,
+               pop_2010,
+               pop_2022,
+               avg(latitude) OVER (PARTITION BY zipcode) AS latitude,-- calculate latitude center for zipcode
+               avg(longitude) OVER (PARTITION BY zipcode) AS longitude,-- calculate longitude center for zipcode
+               growth_rate,
+               dense_rank() OVER (ORDER BY pop_2022 DESC) AS pop_rank,-- rank 2022 popuation from largest to smallest
+               /* using dense_rank() instead of rank() so there are no gaps when there is a tie */dense_rank() OVER (ORDER BY growth_rate DESC) AS growth_rank-- rank growth rate from largest to smallest
+          FROM cte
+         WHERE latitude IS NOT NULL AND 
+               longitude IS NOT NULL
+    )
+    SELECT *-- zipcode, pop_2010, pop_2022, latitude, longitude, pop_rank, growth_rank
+      FROM location
+     WHERE pop_rank <= 20 AND-- select zipcode with above-avg population and growth rate among 53 districts 
+           growth_rank <= 20
+     GROUP BY zipcode;
+
+
+-- View: schoolrating
+CREATE VIEW schoolrating AS
+WITH cte AS (
+        SELECT zpid,
+               zipcode,
+               latitude,
+               longitude,
+               garageSpaces,
+               CAST (latestPrice AS INT) AS price,-- price field is string datatype
+               latest_saleyear,
+               lotSizeSqFt,
+               livingAreaSqFt,
+               avgSchoolDistance,
+               avgSchoolRating
+          FROM zillow_listing
+         WHERE homeType = 'Single Family' AND 
+               price >= 75000 AND 
+               price < 3000000 AND 
+               zipcode IN (
+                   SELECT zipcode
+                     FROM zipcode
+               )
+    )
+    SELECT zipcode,
+           latitude,
+           longitude,
+           avgSchoolRating
+      FROM cte
+     GROUP BY zipcode
+     ORDER BY avgSchoolRating DESC;
+
+
+COMMIT TRANSACTION;
+PRAGMA foreign_keys = on;
